@@ -30,6 +30,7 @@ After that, I encapsulate it inside FastAPI app, now N8N workflow can send reque
 Go to https://www.developers.facebook.com  to register app service, then setup the webhook 
 
 Create Webhook Node to receive message 
+
 ![alt text](image.png)
 
 You can test with webhook-test first then use just webhook to deploy the app.
