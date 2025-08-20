@@ -1,0 +1,346 @@
+{
+  "name": "Trigger Real Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v23.0/733902769796488/messages?access_token=EAAXUWZB0vNS4BOyN5oiWrq9C4OjXoCZAXNmEuSTdr3pvPkBpdVnDGwLl6brSnfyqt1BDYQPwou95jIz65DjMmzR7h04tRIBxhhIZCz4pxmK2lnqDAtAhXaXedZAFHbhGDzz9oOqCGwAL1OvjZAHKRu5usULGO2mnZB9sijq2pcoJOgMIOmuhO1vOqNGpIUdub0rp1kO2X0dgZDZD",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('If').item.json.id }}\"\n  },\n  \"sender_action\": \"typing_on\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        384,
+        -208
+      ],
+      "id": "cc816cba-a0a2-43ea-8bf4-136c20b612ba",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message;\n\nlet parsed;\ntry {\n  parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n} catch (e) {\n  throw new Error('Failed to parse message JSON: ' + e.message);\n}\n\n// If parsed is a number, wrap it into an object manually\nif (typeof parsed === 'number') {\n  return {\n    json: {\n      id: parsed,\n      message: \"typing_on\"\n    }\n  };\n}\n\n// Otherwise, assume it's an object with id and message\nreturn {\n  json: {\n    id: parsed.id,\n    message: parsed.message\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        144
+      ],
+      "id": "2a41ab94-a7d9-41fd-a523-79f84d05ad99",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "402d21e9-f02b-4974-bc84-556e90848536",
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "typing_on",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -96,
+        144
+      ],
+      "id": "17b979de-cf28-4d2b-8dbc-efb656a2554b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        -160
+      ],
+      "id": "f425f46d-61a5-458d-a2dc-d0e8e4afad7b",
+      "name": "Wait",
+      "webhookId": "f97407ea-1000-454b-9e6a-ac2e0b5fee9f"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.id }}_typing",
+        "value": "typing_on"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        160,
+        -48
+      ],
+      "id": "ec4ac7d4-2b3c-4f28-b4db-786cbbd399bf",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ $json.recipient_id }}_typing",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        944,
+        -144
+      ],
+      "id": "697b1d2b-a1c7-4dda-8d36-a2730e03e4a8",
+      "name": "Redis1",
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "675d71f4-2d3a-491c-8b8c-752a6baddf02",
+              "leftValue": "={{ $json.propertyName }}",
+              "rightValue": "typing_on",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1168,
+        -144
+      ],
+      "id": "a8b9fe19-3962-4a28-a3b8-080a9fa5df46",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v23.0/733902769796488/messages?access_token=EAAXUWZB0vNS4BOyN5oiWrq9C4OjXoCZAXNmEuSTdr3pvPkBpdVnDGwLl6brSnfyqt1BDYQPwou95jIz65DjMmzR7h04tRIBxhhIZCz4pxmK2lnqDAtAhXaXedZAFHbhGDzz9oOqCGwAL1OvjZAHKRu5usULGO2mnZB9sijq2pcoJOgMIOmuhO1vOqNGpIUdub0rp1kO2X0dgZDZD",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('If').item.json.id }}\"\n  },\n  \"sender_action\": \"typing_off\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        704,
+        240
+      ],
+      "id": "6e6af401-f4e4-497c-b4c3-1045a376216b",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.recipient_id }}_typing",
+        "value": "=typing_off"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        928,
+        240
+      ],
+      "id": "f969a832-9606-472a-9eb7-90ac8d8b6438",
+      "name": "Redis2",
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "topics": "fb_messenger",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mqttTrigger",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        64
+      ],
+      "id": "e52bdef3-bceb-4909-8577-920f2393debd",
+      "name": "MQTT Trigger",
+      "credentials": {
+        "mqtt": {
+          "id": "XxZ9Xdkrrxyl4oDQ",
+          "name": "MQTT account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MQTT Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "407ac2e7-8d2c-477c-893b-8069a9805608",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fd1a14eff6898e12ffcee066f2c5645abe62cd9e6e56b96df401f25b95578f77"
+  },
+  "id": "vHs1D68N1rGSUB5B",
+  "tags": []
+}

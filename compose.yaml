@@ -1,0 +1,157 @@
+  version: "3.9"
+
+  services:
+    n8n:
+      container_name: n8n
+      restart: always
+      image: n8nio/n8n:latest
+      environment:
+        - WEBHOOK_URL=${URL}
+        - TZ=${TIMEZONE}
+        - GENERIC_TIMEZONE=${TIMEZONE}
+        - N8N_REDIS_HOST=redis
+        - NODE_FUNCTION_ALLOW_BUILTIN=https,crypto,vm,buffer,querystring,url,fs,path
+        - NODE_FUNCTION_ALLOW_EXTERNAL=axios,form-data
+        - N8N_REDIS_PORT=6379
+        - N8N_QUEUE_MODE=redis
+        - N8N_EXECUTIONS_MODE=queue
+      networks:
+        - n8n-network
+      volumes:
+        - n8n_data:/home/node/.n8n
+        - ./my_n8n:/data/my_shared_files
+      depends_on:
+        - redis
+        - standalone
+        - postgres
+
+    redis:
+      container_name: redis
+      restart: always
+      image: redis:7
+      volumes:
+        - redis_data:/data
+      networks:
+        - n8n-network
+
+    etcd:
+      container_name: milvus-etcd
+      image: quay.io/coreos/etcd:v3.5.18
+      restart: always
+      environment:
+        - ETCD_AUTO_COMPACTION_MODE=revision
+        - ETCD_AUTO_COMPACTION_RETENTION=1000
+        - ETCD_QUOTA_BACKEND_BYTES=4294967296
+        - ETCD_SNAPSHOT_COUNT=50000
+      volumes:
+        - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/etcd:/etcd
+      command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+      networks:
+        - n8n-network
+
+    minio:
+      container_name: milvus-minio
+      image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+      restart: always
+      environment:
+        - MINIO_ACCESS_KEY=minioadmin
+        - MINIO_SECRET_KEY=minioadmin
+      ports:
+        - "9001:9001"
+        - "9000:9000"
+      volumes:
+        - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
+      command: minio server /minio_data --console-address ":9001"
+      networks:
+        - n8n-network
+
+    standalone:
+      container_name: milvus-standalone
+      image: milvusdb/milvus:v2.5.14
+      command: ["milvus", "run", "standalone"]
+      security_opt:
+        - seccomp:unconfined
+      restart: always
+      environment:
+        - MINIO_REGION=us-east-1
+        - ETCD_ENDPOINTS=etcd:2379
+        - MINIO_ADDRESS=minio:9000
+        - MINIO_ACCESS_KEY=minioadmin
+        - MINIO_SECRET_KEY=minioadmin
+      volumes:
+        - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
+      ports:
+        - "19530:19530"
+        - "9091:9091"
+      depends_on:
+        - etcd
+        - minio
+      networks:
+        - n8n-network
+
+    ngrok:
+      container_name: ngrok
+      image: ngrok/ngrok:latest
+      restart: always
+      environment:
+        - NGROK_AUTHTOKEN=${NGROK_TOKEN}
+      command:
+        - "start"
+        - "--all"
+        - "--config"
+        - "/etc/ngrok.yml"
+      volumes:
+        - ./ngrok.yml:/etc/ngrok.yml
+      networks:
+        - n8n-network
+
+    postgres:
+      container_name: postgres
+      image: postgres:15
+      restart: always
+      environment:
+        - POSTGRES_USER=n8n
+        - POSTGRES_PASSWORD=n8npass
+        - POSTGRES_DB=n8n
+      volumes:
+        - postgres_data:/var/lib/postgresql/data
+      networks:
+        - n8n-network
+
+    image-search:
+      container_name: image-search
+      restart: always
+      build:
+        context: chatbot/app
+        dockerfile: Dockerfile
+      ports:
+        - "7123:7123"
+      depends_on:
+        - standalone
+      networks:
+        - n8n-network
+      volumes:
+        - .:/app
+
+    mqtt:
+      container_name: mqtt
+      image: eclipse-mosquitto:2
+      restart: always
+      ports:
+        - "1883:1883"
+        - "9002:9001"
+      volumes:
+        - ./mosquitto/config:/mosquitto/config
+        - ./mosquitto/data:/mosquitto/data
+        - ./mosquitto/log:/mosquitto/log
+      networks:
+        - n8n-network
+
+  volumes:
+    n8n_data:
+    redis_data:
+    postgres_data:
+
+  networks:
+    n8n-network:
+      driver: bridge

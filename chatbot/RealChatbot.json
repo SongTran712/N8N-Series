@@ -1,0 +1,1441 @@
+{
+  "name": "RealChatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $json.sender_id }}_waiting",
+        "messageData": "={\n\"sender_id\" : {{ $json.sender_id }},\n\"text\": {{ $json.text }},\n\"images\": {{ $json.image_urls }}\n}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -160
+      ],
+      "id": "d79b4b1f-364d-40a3-92e9-22bfe95eca36",
+      "name": "Redis",
+      "executeOnce": true,
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v23.0/733902769796488/messages?access_token=EAAXUWZB0vNS4BOyN5oiWrq9C4OjXoCZAXNmEuSTdr3pvPkBpdVnDGwLl6brSnfyqt1BDYQPwou95jIz65DjMmzR7h04tRIBxhhIZCz4pxmK2lnqDAtAhXaXedZAFHbhGDzz9oOqCGwAL1OvjZAHKRu5usULGO2mnZB9sijq2pcoJOgMIOmuhO1vOqNGpIUdub0rp1kO2X0dgZDZD",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('Code1').item.json.sender_id }}\"\n  },\n  \"message\": {\n    \"text\": \"{{ $json.output.text}}\"\n    }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2800,
+        -1088
+      ],
+      "id": "ae4f867e-cd8b-4a47-8b3f-605121a8e5f4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Webhook1').first();\nconst data = input.json.body.entry[0].messaging[0];\n\nconst msg = data.message;\nconst senderId = data.sender.id;\n\nconst imageUrls = [];\n\nif (Array.isArray(msg.attachments)) {\n  for (const att of msg.attachments) {\n    if (att.type === 'image' && att.payload?.url) {\n      imageUrls.push(att.payload.url);\n    }\n  }\n}\n\n// Always set text: use \"\" if not present\nconst text = msg.text?.trim() || \"\";\n\nreturn [{\n  json: {\n    sender_id: senderId,\n    text: text,\n    image_urls: imageUrls\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        -96
+      ],
+      "id": "84d65d64-fcb1-4de3-8cb6-8e1b4375803a",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawEntries = $input.first().json.propertyName;\n\nlet senderId = null;\nlet imageUrls = [];\nlet texts = [];\n\nfor (const entry of rawEntries) {\n  // Extract sender_id once\n  if (!senderId) {\n    const senderMatch = entry.match(/\"sender_id\"\\s*:\\s*(\\d+)/);\n    if (senderMatch) {\n      senderId = senderMatch[1];\n    }\n  }\n\n  // Extract image URL\n  const imageMatch = entry.match(/\"images\"\\s*:\\s*(https?:\\/\\/\\S+)/);\n  if (imageMatch) {\n    imageUrls.push(imageMatch[1]);\n  }\n\n  // Extract text (handle both quoted and unquoted)\n  const textMatch = entry.match(/\"text\"\\s*:\\s*\"?([^\",\\n}]+)\"?/);\n  if (textMatch) {\n    const cleanText = textMatch[1].trim();\n    if (cleanText) {\n      texts.push(cleanText);\n    }\n  }\n}\n\n// ✅ Return empty array if both imageUrls and texts are empty\nif (imageUrls.length === 0 && texts.length === 0) {\n  return [];\n}\n\n// Otherwise return parsed result\nreturn [\n  {\n    json: {\n      sender_id: senderId,\n      image_urls: imageUrls,\n      combined_text: texts.join('. ')\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -304
+      ],
+      "id": "dd1b4e31-2147-4d77-a125-a185d30fd995",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "o4-mini",
+          "mode": "list",
+          "cachedResultName": "o4-mini"
+        },
+        "options": {
+          "frequencyPenalty": 0,
+          "maxTokens": -1,
+          "responseFormat": "json_object",
+          "timeout": 60000,
+          "topP": 1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1264,
+        -48
+      ],
+      "id": "0b31de7a-eab3-48ee-8ea3-aa1cb4bbc745",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "Z8l6BNfMCogSoisn",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Edit Fields').item.json.session }}",
+        "sessionTTL": 86400
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        1504,
+        -144
+      ],
+      "id": "c6bac9ae-b2e7-4bdc-a6d6-bd4088eb1dfa",
+      "name": "Redis Chat Memory",
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ $json.sender_id }}_waiting",
+        "keyType": "list",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -176
+      ],
+      "id": "1d8080a6-1874-443b-9151-620ae214374c",
+      "name": "Redis2",
+      "executeOnce": true,
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $json.sender_id }}_waiting"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        864,
+        -624
+      ],
+      "id": "4c92d239-3921-4b8a-9d1e-5eda1dab1f27",
+      "name": "Redis3",
+      "executeOnce": true,
+      "credentials": {
+        "redis": {
+          "id": "QMCh7JiuUE34CVhz",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d2b430b8-e305-4b38-b12b-44e9bb596e73",
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1072,
+        -448
+      ],
+      "id": "51fdfe1a-29ff-4320-810f-d1f4239e6eb2",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9e3c0807-e17d-41c1-a950-ead2b4cb0991",
+              "name": "input",
+              "value": "={{ $json.combined_text }}",
+              "type": "string"
+            },
+            {
+              "id": "aa1f8e5c-9e0e-4283-99cc-e8d0ef59f816",
+              "name": "session",
+              "value": "={{ $('If').item.json.sender_id }}",
+              "type": "string"
+            },
+            {
+              "id": "659dc505-ceac-423f-92ff-a1ebeb89d374",
+              "name": "images",
+              "value": "={{ $json.image_urls }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1232,
+        -704
+      ],
+      "id": "a14f17d9-d250-41a2-930d-d16ca7762f99",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Sử dụng tool này để truy vấn nhựng thông tin cần thiết dựa trên 2 trường quan trọng là name và category dựa trên table product\nCó thể dùng để lấy toàn bộ thông tin, toàn bộ sản phẩm theo loại \nFilter lại dữ liệu để phản hồi cho người dùng",
+        "operation": "executeQuery",
+        "query": "{{ $fromAI('sql_query') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2288,
+        -304
+      ],
+      "id": "fe904411-cf63-46ec-bdf8-5e7423a824fe",
+      "name": "Execute a SQL query in Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "FM4WniZev3DKrhg3",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Dùng tool này để semantic retrieve dữ liệu về name, category của sản phẩm dựa trên user_query và image_url",
+        "method": "POST",
+        "url": "http://image-search:7123/semantic-retrieve",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $fromAI('user_query') }}"
+            },
+            {
+              "name": "image_urls",
+              "value": "={{ $fromAI('image_url') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1728,
+        -96
+      ],
+      "id": "5a51ffb3-3285-4e53-808d-651189cf079a",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        -480
+      ],
+      "id": "509543c9-3454-428e-8b9b-24a9b32ddfd8",
+      "name": "Wait",
+      "webhookId": "e435347f-b36e-4bc4-bf74-b5ec6714d93d"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "06991114-0269-44f1-a829-1671d6d39543",
+              "leftValue": "={{ $('Code').item.json.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        -336
+      ],
+      "id": "93af848f-6a96-4fcc-a677-41a50b7278b1",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -1008,
+        -384
+      ],
+      "id": "a430545f-afc0-4cb7-854b-c9f5d463348b",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "path": "f13e6a47-2073-45dc-a9f2-00740b2baf3f",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1648,
+        -144
+      ],
+      "id": "f3b92961-37f4-43c2-aad2-570ea03a1543",
+      "name": "Webhook1",
+      "webhookId": "f13e6a47-2073-45dc-a9f2-00740b2baf3f",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "topic": "fb_messenger",
+        "sendInputData": false,
+        "message": "={\n\"id\":\"{{ $json.body.entry[0].messaging[0].sender.id }}\",\n\"message\":\"typing_on\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -80
+      ],
+      "id": "1b5009c6-2291-4b96-8f0d-91d6ead454c4",
+      "name": "MQTT",
+      "credentials": {
+        "mqtt": {
+          "id": "XxZ9Xdkrrxyl4oDQ",
+          "name": "MQTT account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "topic": "fb_messenger",
+        "sendInputData": false,
+        "message": "={\n  \"id\":\"{{ $('Code1').item.json.sender_id }}\",\n  \"message\":\"typing_off\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [
+        2224,
+        -640
+      ],
+      "id": "5136526d-2bb2-4294-a9c3-e13f284949a3",
+      "name": "MQTT1",
+      "credentials": {
+        "mqtt": {
+          "id": "XxZ9Xdkrrxyl4oDQ",
+          "name": "MQTT account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1ce51e56-5450-4f65-8658-eaf52572fc95",
+              "leftValue": "={{ $json.output.text }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "dd3611cb-94a5-43d5-860f-2ccf00a25eed",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2480,
+        -656
+      ],
+      "id": "196c4f9b-6c28-48f5-a35e-20f03ca3cfd2",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a893b65e-56a2-4bed-90e0-24398bca93c9",
+              "leftValue": "={{ $json.output.attachment }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2608,
+        -416
+      ],
+      "id": "4eb9da0a-48ae-435a-a9e6-86e6365c9df8",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const axios = require('axios');\n\nasync function sendMessengerCard() {\n  const url = \"https://graph.facebook.com/v23.0/733902769796488/messages?access_token=EAAXUWZB0vNS4BOyN5oiWrq9C4OjXoCZAXNmEuSTdr3pvPkBpdVnDGwLl6brSnfyqt1BDYQPwou95jIz65DjMmzR7h04tRIBxhhIZCz4pxmK2lnqDAtAhXaXedZAFHbhGDzz9oOqCGwAL1OvjZAHKRu5usULGO2mnZB9sijq2pcoJOgMIOmuhO1vOqNGpIUdub0rp1kO2X0dgZDZD\";\n\n  let elements = $input.first().json.output.attachment.payload.elements;\n\n  if (!Array.isArray(elements)) {\n    return { success: false, error: \"Elements must be an array.\" };\n  }\n\n  if (elements.length === 0) {\n    return { success: false, error: \"Elements list is empty.\" };\n  }\n\n  // Truncate to first 8 elements if necessary\n  if (elements.length > 8) {\n    elements = elements.slice(0, 8);\n  }\n\n  const payload = {\n    recipient: { id: $('Code1').item.json.sender_id },\n    message: {\n      attachment: {\n        type: \"template\",\n        payload: {\n          template_type: \"generic\",\n          elements: elements\n        }\n      }\n    }\n  };\n\n  try {\n    const response = await axios.post(url, payload);\n    return { success: true, messageId: response.data.message_id || null };\n  } catch (error) {\n    return { success: false, error: error.response?.data || error.message };\n  }\n}\n\n// For n8n Function node\nreturn await sendMessengerCard();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2944,
+        -464
+      ],
+      "id": "202f1993-58af-49ea-b89d-da3145cac603",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"title\": \"Chatbot Message Schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"text\": {\n      \"type\": [\"string\"]\n    },\n    \"attachment\": {\n      \"type\": [\"object\", null],\n      \"description\": \"Optional rich content like templates.\",\n      \"properties\": {\n        \"type\": {\n          \"type\": \"string\",\n          \"enum\": [\"template\"],\n          \"description\": \"The type of the attachment. Only 'template' is supported.\"\n        },\n        \"payload\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"template_type\": {\n              \"type\": \"string\",\n              \"enum\": [\"generic\"],\n              \"description\": \"Type of template. Only 'generic' supported.\"\n            },\n            \"elements\": {\n              \"type\": \"array\",\n              \"minItems\": 1,\n              \"items\": {\n                \"type\": \"object\",\n                \"properties\": {\n                  \"title\": {\n                    \"type\": \"string\", \n                    \"description\": \"Title of the card element.\"\n                  },\n                  \"image_url\": {\n                    \"type\": \"string\",\n                    \"format\": \"uri\",\n                    \"description\": \"Optional image URL for the element.\"\n                  },\n                  \"subtitle\": {\n                    \"type\": \"string\",\n                    \"description\": \"Optional subtitle.\"\n                  },\n                  \"default_action\": {\n                    \"type\": \"object\",\n                    \"properties\": {\n                      \"type\": {\n                        \"type\": \"string\",\n                        \"enum\": [\"web_url\"]\n                      },\n                      \"url\": {\n                        \"type\": \"string\",\n                        \"format\": \"uri\"\n                      }\n                    }\n                  },\n                  \"buttons\": {\n                    \"type\": \"array\",\n                    \"minItems\": 1,\n                    \"items\": {\n                      \"type\": \"object\",\n                      \"properties\": {\n                        \"type\": {\n                          \"type\": \"string\",\n                          \"enum\": [\"web_url\"]\n                        },\n                        \"url\": {\n                          \"type\": \"string\",\n                          \"format\": \"uri\"\n                        },\n                        \"title\": {\n                          \"type\": \"string\"\n                        }\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  },\n  \"required\": [\"text\"]\n}\n",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1920,
+        -208
+      ],
+      "id": "e0eba50f-9e44-44bd-83e2-b479642ea8b5",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2080,
+        64
+      ],
+      "id": "a5a6382c-e800-44f1-a251-c309a3deb6a9",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "Z8l6BNfMCogSoisn",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.input }}\n\n{{ $json.images.length ? $json.images : '' }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Bạn là VelaGroup, Agentic RAG Agent\nHỗ trợ truy vấn sản phẩm theo yêu cầu từ văn bản, ảnh, hoặc cả hai.\nCông cụ:\n  HTTP Request Tool\n    Luôn dùng trước khi tìm sản phẩm.\n    Trích name hoặc category từ user_query và/hoặc image_url.\n    Kết quả này là đầu vào cho bước SQL.\n\n  SQL Query Tool\n    Truy vấn bảng product với các trường:\n    ['name', 'category', 'description', 'discount_price', 'discount_rate', 'id', 'instruction', 'origin_price', 'review', 'sold', 'warranty', 'link', 'image']\n\nHướng dẫn:\nKhi người dùng Truy vấn theo từ khóa:\n    Dùng HTTP → lấy name / category\n    Dùng SQL → truy vấn chi tiết sản phẩm phù hợp\n    Trả lời bằng template\n\nKhi người dùng hỏi Tổng quan sản phẩm:\n    SQL → lấy tất cả category\n    Mỗi loại → chọn sản phẩm bán chạy nhất\n    Trả kết quả theo mẫu\n\nChào hỏi:\n→ Phản hồi thân thiện, ngắn gọn.\n\nKhi người dùng Hỏi tiếp về sản phẩm đã xem:\n→ Dùng memory để lấy name / category trước đó -> dùng SQL Query thực hiện tiếp yêu cầu\n\nĐảm bảo trả lời người dùng lịch sự và chỉ trả lời các sản phẩm có trong database.\n🧾 Mẫu phản hồi:\n{\n  \"text\": \"Hãy tham khảo qua các sản phẩm dưới đây nhé:\",\n  \"attachment\": {\n    \"type\": \"template\",\n    \"payload\": {\n      \"template_type\": \"generic\",\n      \"elements\": [\n        {\n          \"title\": \"Nồi Lẩu 2 Ngăn KIDAI VIFIBA\",\n          \"image_url\": \"https://...\",\n          \"subtitle\": \"Giá: 1.499.000đ (Giảm 32%) - 5⭐ (88 đã bán)\",\n          \"default_action\": {\n            \"type\": \"web_url\",\n            \"url\": \"https://...\"\n          },\n          \"buttons\": [\n            {\n              \"type\": \"web_url\",\n              \"url\": \"https://...\",\n              \"title\": \"Xem & Mua\"\n            }\n          ]\n        }\n      ]\n    }\n  }\n}",
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        -464
+      ],
+      "id": "4b766316-4295-4fb2-bd22-eb4eda03cded",
+      "name": "AI Agent",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        912,
+        1408
+      ],
+      "id": "a2680815-3b11-4c8c-886b-4df0a11d50f2",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "Z8l6BNfMCogSoisn",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        592,
+        1072
+      ],
+      "id": "ebf50be8-40f0-4166-9a7f-9bcc25ed8f2b",
+      "name": "When chat message received",
+      "webhookId": "2e817fa2-9472-4afc-8488-92140ad7681d"
+    },
+    {
+      "parameters": {
+        "topic": "fb_messenger",
+        "sendInputData": false,
+        "message": "={\n  \"id\":\"{{ $('Code1').item.json.sender_id }}\",\n  \"message\":\"typing_off\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [
+        2048,
+        -848
+      ],
+      "id": "706f28fa-e016-467e-8474-ad7650bc5c17",
+      "name": "MQTT2",
+      "credentials": {
+        "mqtt": {
+          "id": "XxZ9Xdkrrxyl4oDQ",
+          "name": "MQTT account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v23.0/733902769796488/messages?access_token=EAAXUWZB0vNS4BOyN5oiWrq9C4OjXoCZAXNmEuSTdr3pvPkBpdVnDGwLl6brSnfyqt1BDYQPwou95jIz65DjMmzR7h04tRIBxhhIZCz4pxmK2lnqDAtAhXaXedZAFHbhGDzz9oOqCGwAL1OvjZAHKRu5usULGO2mnZB9sijq2pcoJOgMIOmuhO1vOqNGpIUdub0rp1kO2X0dgZDZD",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": {\n    \"id\": \"{{ $('Code1').item.json.sender_id }}\"\n  },\n  \"message\": {\n    \"text\": \"Hiện Server Đang Bận. Xin lỗi ạ\"\n    }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2304,
+        -896
+      ],
+      "id": "96e0c925-2d1d-4bd3-a85f-85559bbe90ba",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "product",
+          "mode": "list",
+          "cachedResultName": "product"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1600,
+        1024
+      ],
+      "id": "b6d2c5dc-2651-48c5-bb96-86ebe7c6123d",
+      "name": "Select rows from a table",
+      "credentials": {
+        "postgres": {
+          "id": "FM4WniZev3DKrhg3",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const axios = require('axios');\n\nasync function sendMessengerText() {\n  const url = \"https://graph.facebook.com/v17.0/733902769796488/messages?access_token=EAAXUWZB0vNS4BOyN5oiWrq9C4OjXoCZAXNmEuSTdr3pvPkBpdVnDGwLl6brSnfyqt1BDYQPwou95jIz65DjMmzR7h04tRIBxhhIZCz4pxmK2lnqDAtAhXaXedZAFHbhGDzz9oOqCGwAL1OvjZAHKRu5usULGO2mnZB9sijq2pcoJOgMIOmuhO1vOqNGpIUdub0rp1kO2X0dgZDZD\";\n\n  const senderId = $('Code1').item.json.sender_id;\n  const messageText = $input.first().json.output.text || \"Có vấn đề trong xử lý. Xin quý khách thông cảm\";\n\n  const payload = {\n    recipient: {\n      id: senderId\n    },\n    message: {\n      text: messageText\n    }\n  };\n\n  try {\n    const response = await axios.post(url, payload);\n    return {\n      success: true,\n      messageId: response.data.message_id || null\n    };\n  } catch (error) {\n    return {\n      success: false,\n      error: error.response?.data || error.message\n    };\n  }\n}\n\n// Function Node return\nreturn await sendMessengerText();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        -768
+      ],
+      "id": "0f85deff-84d3-416f-821f-7969fa0d12ab",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/data/my_shared_files/products.xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        112,
+        -1728
+      ],
+      "id": "1fd01172-0b11-4718-94fc-8c280647fe99",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "sheetName": "products"
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -1728
+      ],
+      "id": "2ed33da6-a876-4284-aa94-149ee7235b2b",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "milvusCollection": {
+          "__rl": true,
+          "value": "products",
+          "mode": "list",
+          "cachedResultName": "products"
+        },
+        "embeddingBatchSize": 1536,
+        "options": {
+          "clearCollection": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreMilvus",
+      "typeVersion": 1.3,
+      "position": [
+        1648,
+        -2240
+      ],
+      "id": "a4d9b1d9-4c00-4d5f-a90c-966e81d01df2",
+      "name": "Milvus Vector Store1",
+      "credentials": {
+        "milvusApi": {
+          "id": "XX6MAWRZWdaE4cLw",
+          "name": "Milvus account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1584,
+        -1888
+      ],
+      "id": "fb359b7d-c299-42e0-aabc-ca4dbd994688",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "Z8l6BNfMCogSoisn",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $('Code4').item.json.text }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "name",
+                "value": "={{ $('Code4').item.json.name }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        1824,
+        -2000
+      ],
+      "id": "faa31229-8c34-4046-b6da-6ef118ead5c5",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "product",
+          "mode": "list",
+          "cachedResultName": "product"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "origin_price": "={{ $json.original_price }}",
+            "discount_price": "={{ $json.discount_price }}",
+            "sold": "={{ $json.sold }}",
+            "name": "={{ $json.name }}",
+            "link": "={{ $json.link }}",
+            "discount_rate": "={{ $json.discount_rate }}",
+            "instruction": "={{ $json.guideText }}",
+            "review": "={{ $json.review }}",
+            "category": "={{ $json.category }}",
+            "warranty": "={{ $json.warranty }}",
+            "specs": "={{ $json.specs }}",
+            "image": "={{ $json.image }}",
+            "description": "={{ $json.desc }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "image",
+              "displayName": "image",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "origin_price",
+              "displayName": "origin_price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "discount_price",
+              "displayName": "discount_price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "discount_rate",
+              "displayName": "discount_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "review",
+              "displayName": "review",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sold",
+              "displayName": "sold",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "specs",
+              "displayName": "specs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "instruction",
+              "displayName": "instruction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "warranty",
+              "displayName": "warranty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        944,
+        -1888
+      ],
+      "id": "4fa618ba-3211-4ad0-8c77-14e6472aebc8",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "FM4WniZev3DKrhg3",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chunkSize": 4000,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        1904,
+        -1776
+      ],
+      "id": "8483a0e0-8263-4b40-856c-1c57979920b5",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        -1728
+      ],
+      "id": "8a9e77ee-e6b0-4ec6-8675-ce98dfe178b8",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map((item, index) => {\n  const name = item.json['Tên'] || '';\n  const specs = item.json['Thông số kỹ thuật'] || '';\n  const desc = item.json['Mô tả sản phẩm'] || '';\n  const warranty = item.json['Chính sách bảo hành'] || '';\n  const guideText = item.json['HDSD TEXT'] || '';\n  const guideUrl = item.json['HDSD URL'] || '';\n  const discountPrice = item.json['Giá km'] || '';\n  const discount_price = parseInt(discountPrice.replace(/[^\\d]/g, \"\"));\n  const originalPrice = item.json['Giá gốc'] || '';\n  const original_price = parseInt(originalPrice.replace(/[^\\d]/g, \"\"));\n  const discount_rate = item.json['Độ giảm giá'] || '';\n  const review = item.json['Đánh giá'] || '';\n  const soldString = item.json['Đã bán'] || '';\n  const sold = parseInt(soldString.replace(/[^\\d]/g, \"\"));\n  const category = item.json['Nhóm sản phẩm'] || '';\n  const image = item.json['Hình'] || '';\n  const link = item.json['Link sản phẩm'] || '';\n\n  // Extract numeric discount value from \"4%\" or \"giảm 4%\"\n  let discountValue = null;\n  const match = discount_rate.match(/(\\d+)%/);\n  if (match) {\n    discountValue = parseInt(match[1], 10);\n  }\n\n  const text = `Tên: ${name}\n  \nNhóm sản phẩm: ${category}\n\nThông số kỹ thuật:\n${specs}\n\nMô tả sản phẩm:\n${desc}`;\n\n  return {\n    json: {\n      id: index + 1,\n      name,\n      discountValue,\n      specs,\n      warranty,\n      guideText,\n      guideUrl,\n      discount_price,\n      original_price,\n      discount_rate: discountValue,\n      review,\n      sold,\n      category,\n      image,\n      link,\n      desc,\n      text\n      \n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        -1728
+      ],
+      "id": "9ad9a16b-96dc-4cec-9f3b-f3cec7c70e49",
+      "name": "Code4"
+    },
+    {
+      "parameters": {
+        "operation": "deleteTable",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "product",
+          "mode": "list",
+          "cachedResultName": "product"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -800,
+        -1776
+      ],
+      "id": "12f17dad-9186-4b06-9ea8-c411881ca187",
+      "name": "Delete table or rows",
+      "credentials": {
+        "postgres": {
+          "id": "FM4WniZev3DKrhg3",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Redis3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis2": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis3": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query in Postgres": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "MQTT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    },
+    "MQTT": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MQTT1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        []
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "MQTT1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MQTT2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MQTT2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Milvus Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Milvus Vector Store1",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code4": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "12fda875-d3e1-4697-b441-20bb8d3a1d89",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fd1a14eff6898e12ffcee066f2c5645abe62cd9e6e56b96df401f25b95578f77"
+  },
+  "id": "tCB7B8Crhbk0pLQM",
+  "tags": []
+}
