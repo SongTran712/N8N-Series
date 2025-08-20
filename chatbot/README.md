@@ -29,5 +29,29 @@ After that, I encapsulate it inside FastAPI app, now N8N workflow can send reque
 
 Go to https://www.developers.facebook.com  to register app service, then setup the webhook 
 
-Create Webhook Note to receive message 
+Create Webhook Node to receive message 
+![alt text](image.png)
+
+You can test with webhook-test first then use just webhook to deploy the app.
+
+# 5. Agentic RAG Agent:
+
+The Agentic RAG Agent needs the 5 most important components which are ChatModel for inference, Redis Memory to manage history, HTTP Request use to get semantic search based on image or text, Postgres Tool for further process based on structured database, Structured Parse Output to parse the output to the right format need.
+
+![alt text](image-1.png)
+
+# 6. Further Process:
+
+a. Typing:
+When user send an message, we might want to send user the typing message, it sounds simple but in N8N there is no way we can handle multithread or multiprocess, we dont have any way for 1 thread to handle a request another thread is to check for the request is finish or not to decide to send user a typing.
+
+So the simple way is create another workflow and when user send request we trigger it by the user_id, a lot of message queue can be used but I choose MQTT because we just need to send a really small message like user_id and boolean option whether to send typing to user or not.
+
+b. Genaric Format For Facebook Messenger Response:
+
+Like I said in the AI Agent, the Output Parser is important, we can parse the output response by getting data in side structured database to structured format that fit the generic format of Facebook Messenger and we can send the image with url and content of product that make the interface better.
+
+![alt text](image-2.png)
+
+
 
